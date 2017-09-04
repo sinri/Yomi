@@ -61,13 +61,13 @@ class SingleJSONServer
             if (!is_array($contentParsed)) {
                 YomiHelper::log("ERROR", "YomiSingle [{$pairName}] Cannot parse as JSON!");
                 fwrite($client, json_encode(['code' => '400', 'data' => 'NOT JSON:' . PHP_EOL . $contentParsed]));
-                return true;
+                return SocketAgent::SERVER_CALLBACK_COMMAND_CLOSE_CLIENT;
             }
 
             if (!isset($contentParsed['type']) || !isset($contentParsed['data'])) {
                 YomiHelper::log("ERROR", "YomiSingle [{$pairName}] Not a correct input!");
                 fwrite($client, json_encode(['code' => '400', 'data' => 'NOT CORRECT INPUT']));
-                return true;
+                return SocketAgent::SERVER_CALLBACK_COMMAND_CLOSE_CLIENT;
             }
 
             $type = $contentParsed['type'];
@@ -82,7 +82,7 @@ class SingleJSONServer
 
             if ($code == '300') {
                 YomiHelper::log("INFO", "For [{$pairName}] has forked a client [{$responseBody}] to handle, parent leaves.");
-                return false;
+                return SocketAgent::SERVER_CALLBACK_COMMAND_NONE;
             } elseif ($code == '200') {
                 fwrite($client, json_encode(['code' => $code, 'data' => $responseBody]));
                 fflush($client);
@@ -93,7 +93,7 @@ class SingleJSONServer
                 //exception, often 500
                 fwrite($client, json_encode(['code' => $code, 'data' => $responseBody]));
             }
-            return true;
+            return SocketAgent::SERVER_CALLBACK_COMMAND_CLOSE_CLIENT;
         });
     }
 

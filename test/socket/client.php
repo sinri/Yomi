@@ -6,7 +6,8 @@
  * Time: 23:15
  */
 
-require_once __DIR__ . '/../../src/socket/SocketAgent.php';
+//require_once __DIR__ . '/../../src/socket/SocketAgent.php';
+require_once __DIR__ . '/../../autoload.php';
 
 $socketAgent = new \sinri\yomi\socket\SocketAgent("127.0.0.1", '11111');
 
