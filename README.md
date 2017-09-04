@@ -59,3 +59,15 @@ The request and response are both in JSON format.
 When runs as client, it can send a request to the open server.
 
 The multi processes are not limited, so it is only a demo for SocketAgent Application.
+
+## Yomi based on Hades
+
+You need a config file `yomi.conf.php`;
+
+Override `Hades::workForChild` as after story.
+
+Run and see effects. 
+
+```bash
+php yomi.php [start|stop|force-stop|status]
+```
