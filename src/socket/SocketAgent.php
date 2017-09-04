@@ -9,6 +9,8 @@
 namespace sinri\yomi\socket;
 
 
+use sinri\yomi\helper\YomiHelper;
+
 class SocketAgent
 {
     protected $address;
@@ -32,22 +34,33 @@ class SocketAgent
             throw new \UnexpectedValueException("Could not bind to socket: $errorMessage");
         }
 
-        echo "BEGIN LISTEN..." . PHP_EOL;
+        YomiHelper::defineSignalHandler([SIGINT, SIGTERM, SIGHUP], function ($signal_number) {
+            YomiHelper::log("ERROR", "SIGNAL: " . $signal_number);
+            exit();
+        });
+        YomiHelper::defineSignalHandler([SIGUSR1], function ($signal_number) {
+            YomiHelper::log("INFO", "USER SIGNAL: " . $signal_number);
+        });
+
+        YomiHelper::log("INFO", "BEGIN LISTEN...");
 
         while (true) {
             $client = stream_socket_accept($server, $this->listenTimeout, $this->peerName);
 
             if ($client) {
+                $shouldCloseClient = true;
+                $pairName = stream_socket_get_name($client, true);
                 if ($callback) {
-                    call_user_func_array($callback, [$client]);
+                    $shouldCloseClient = call_user_func_array($callback, [$client]);
                 } else {
                     //just a demo
                     $content = stream_get_contents($client);
-                    $pairName = stream_socket_get_name($client, true);
-
-                    echo "Received from [{$pairName}]: " . $content . PHP_EOL;
+                    YomiHelper::log("INFO", "Received from [{$pairName}]: " . $content);
                 }
-                fclose($client);
+                if ($shouldCloseClient) {
+                    fclose($client);
+                    YomiHelper::log("INFO", "CLOSE CLIENT [{$pairName}]");
+                }
             }
         }
 
@@ -72,11 +85,8 @@ class SocketAgent
             //$result=stream_socket_sendto($client, $content);
             //$response = stream_get_contents($client);
 
-            echo __METHOD__ . " sent PING, response: " . $response . PHP_EOL;
+            YomiHelper::log("DEBUG", " sent PING, response: " . $response);
         }
         fclose($client);
-
-
-        //return $response;
     }
 }
