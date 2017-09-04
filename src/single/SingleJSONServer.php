@@ -33,14 +33,8 @@ class SingleJSONServer
 
             stream_set_timeout($client, 0, 100000);
 
-            //$content = stream_get_contents($client);
-
             $content = '';
             while (!feof($client)) {
-//                YomiHelper::log('DEBUG', 'Loop read [{$pairName}] once:');
-//                $meta = stream_get_meta_data($client);
-//                YomiHelper::log('DEBUG', 'MetaData from [{$pairName}]: ' . json_encode($meta));
-
                 $got = fread($client, 1024);
                 $content .= $got;
 
@@ -50,12 +44,7 @@ class SingleJSONServer
                     break;
                 }
             }
-
             YomiHelper::log("DEBUG", "Yomi received data: " . PHP_EOL . $content . PHP_EOL);
-
-            //$pairName = stream_socket_get_name($client, true);
-
-            //$this->log("INFO", "YomiSingle Received from [{$pairName}]: " . $content);
 
             $contentParsed = json_decode($content, true);
             if (!is_array($contentParsed)) {
@@ -76,9 +65,6 @@ class SingleJSONServer
             $request = new YomiRequest($type, $data);
 
             $code = $this->handleRequest($request, $responseBody);
-
-//            $meta=stream_get_meta_data($client);
-//            YomiHelper::log('DEBUG','Handled [{$pairName}], code is '.$code.' and  meta: '.json_encode($meta));
 
             if ($code == '300') {
                 YomiHelper::log("INFO", "For [{$pairName}] has forked a client [{$responseBody}] to handle, parent leaves.");
@@ -132,6 +118,5 @@ class SingleJSONServer
             }
         }
     }
-
 
 }

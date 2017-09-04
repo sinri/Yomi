@@ -20,9 +20,7 @@ $requestHandler = function($client){
     // write back to stream
     fwrite($client, "Data received!");
     // finish and report finish style among the consts of SocketAgent:
-    // SERVER_CALLBACK_COMMAND_CLOSE_CLIENT 
-    // SERVER_CALLBACK_COMMAND_CLOSE_SERVER
-    // SERVER_CALLBACK_COMMAND_NONE
+    // SERVER_CALLBACK_COMMAND_CLOSE_CLIENT / SERVER_CALLBACK_COMMAND_CLOSE_SERVER / SERVER_CALLBACK_COMMAND_NONE
     return \sinri\yomi\socket\SocketAgent::SERVER_CALLBACK_COMMAND_CLOSE_CLIENT;
 }
 $bindStatusHandler=function($bindOK){
@@ -50,3 +48,14 @@ $callback=function($connection){
 // run as client once
 $socketAgent->runClient($callback);
 ```
+
+### A demo: SingleJSONServer
+
+SingleJSONServer is a server/client package. 
+
+When runs as server, it listens to ip/port and fork a child process to handle the coming request. 
+The request and response are both in JSON format. 
+
+When runs as client, it can send a request to the open server.
+
+The multi processes are not limited, so it is only a demo for SocketAgent Application.
