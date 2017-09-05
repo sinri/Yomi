@@ -25,6 +25,8 @@ class Hades
     /**
      * Hades constructor.
      * Config is an array with keys:
+     * > 'socket_type' string, tcp_ip|unix_socket
+     * > 'socket_file' string, socket file path
      * > 'daemon_port' integer,
      * > 'worker_count'  integer,
      * > 'worker_must_fulfilled' boolean.
@@ -38,7 +40,35 @@ class Hades
     }
 
     /**
-     *
+     * @param array $config
+     * @return Hades
+     */
+    public static function yomiFactory($config)
+    {
+        $classname = $config['override_class'];
+        if ($classname) {
+            return new $classname($config);
+        } else {
+            return new Hades($config);
+        }
+    }
+
+    /**
+     * @return SocketAgent
+     */
+    protected function createSocketAgent()
+    {
+        $socketAgent = new SocketAgent();
+        if ($this->config['socket_type'] == 'tcp_ip') {
+            $socketAgent->configSocketAsTcpIp('127.0.0.1', $this->config['daemon_port']);
+        } elseif ($this->config['socket_type'] == 'unix_socket') {
+            $socketAgent->configSocketAsUnixDomain($this->config['socket_file']);
+        }
+        return $socketAgent;
+    }
+
+    /**
+     * Create worker processes and listen to socket as daemon
      */
     public function start()
     {
@@ -86,7 +116,7 @@ class Hades
                 exit();
             });
             // try to bind port
-            $socketAgent = new SocketAgent('127.0.0.1', $this->config['daemon_port']);
+            $socketAgent = $this->createSocketAgent();
             $socketAgent->runServer(function ($client) {
                 $pairName = stream_socket_get_name($client, true);
                 YomiHelper::log("INFO", 'Accepted from ' . $pairName);
@@ -132,6 +162,12 @@ class Hades
                         posix_kill($pid, SIGUSR2);
                     }
                 }
+            }, function ($serverSocket, $signal_number) {
+                YomiHelper::log("ERROR", "SIGNAL: " . $signal_number . " Would there be any eggs not broken under the reversed nest? FORCE STOP ALL!");
+                $this->forceStop(null);
+                if ($serverSocket) {
+                    YomiHelper::log("INFO", "Let SocketAgent to terminate the server socket...");
+                }
             });
         } catch (\Exception $exception) {
             // cannot bind port, might an instance there already
@@ -145,12 +181,12 @@ class Hades
      */
     protected function stop($client = null)
     {
-        // DONE 通知所有子进程灭亡
+        // Notify all worker processes as SIGUSR1 to stop working.
         foreach ($this->childPidPool as $pid) {
             $done = posix_kill($pid, SIGUSR1);
             YomiHelper::log("INFO", "Sent SIGUSR1 to child [{$pid}]... " . json_encode($done));
         }
-        // DONE 等待所有子进程灭亡
+        // Wait for all worker processes exit
         foreach ($this->childPidPool as $pid) {
             YomiHelper::log("INFO", "Waiting for child [{$pid}] to stop...");
             $result = pcntl_waitpid($pid, $status);
@@ -164,16 +200,16 @@ class Hades
     }
 
     /**
-     * this might be overrode
+     * this might be overrode to realize the customized request
      */
     protected function workForChild()
     {
-        // to override this
         while ($this->workProcessSwitch == self::WORKER_INIT) {
             time_nanosleep(0, 100000000);
             YomiHelper::log("DEBUG", "current worker status: " . $this->workProcessSwitch);
         }
         while ($this->workProcessSwitch != self::WORKER_STOP) {
+            // You might only rewrite this part when override.
             YomiHelper::log("DEBUG", "I am working...");
             sleep(rand(2, 6));
         }
@@ -184,11 +220,12 @@ class Hades
      */
     protected function forceStop($client = null)
     {
-        // DONE 强行让所有子进程灭亡
+        // Force all worker processes to exit with SIGINT.
         foreach ($this->childPidPool as $pid) {
             $done = posix_kill($pid, SIGINT);
             YomiHelper::log("INFO", "Sent SIGINT to child [{$pid}]... " . json_encode($done));
         }
+        // Wait for all worker processes exit
         foreach ($this->childPidPool as $pid) {
             YomiHelper::log("INFO", "Waiting for child [{$pid}] to stop...");
             $result = pcntl_waitpid($pid, $status);
@@ -224,7 +261,7 @@ class Hades
     protected function sendOrder($order)
     {
         try {
-            $socketAgent = new SocketAgent('127.0.0.1', $this->config['daemon_port']);
+            $socketAgent = $this->createSocketAgent();
             $socketAgent->runClient(function ($client) use ($order) {
                 fwrite($client, json_encode(['order' => $order]));
 

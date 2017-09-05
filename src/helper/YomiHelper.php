@@ -31,18 +31,25 @@ class YomiHelper
         return null;
     }
 
+    /**
+     * @param string $level DEBUG INFO WARNING ERROR
+     * @param string $message
+     */
     public static function log($level, $message)
     {
         $pid = getmypid();
         echo "[" . date("Y-m-d H:i:s") . "|" . microtime(true) . "] <{$pid}:{$level}> " . $message . PHP_EOL;
     }
 
+    /**
+     * @param array $signals
+     * @param callable $callback
+     */
     public static function defineSignalHandler($signals, $callback)
     {
         declare(ticks=1);
         foreach ($signals as $signal) {
             pcntl_signal($signal, $callback);
         }
-        //pcntl_signal_dispatch();
     }
 }

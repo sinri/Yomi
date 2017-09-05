@@ -17,53 +17,105 @@ class SocketAgent
     const SERVER_CALLBACK_COMMAND_CLOSE_CLIENT = "CLOSE_CLIENT";
     const SERVER_CALLBACK_COMMAND_CLOSE_SERVER = "CLOSE_SERVER";
 
+    const SOCKET_TYPE_UNIX_DOMAIN = "UNIX_DOMAIN";
+    const SOCKET_TYPE_TCP_IP = "TCP_IP";
+
+    protected $socketType;
+    protected $unixDomainFile;
     protected $address;
     protected $port;
     protected $listenTimeout;
     protected $peerName;
 
+    protected $serverSocket;
+
     /**
      * SocketAgent constructor.
-     * @param string $address
-     * @param int $port
      */
-    public function __construct($address, $port)
+    public function __construct()
     {
-        $this->address = $address;
-        $this->port = $port;
+        $this->socketType = self::SOCKET_TYPE_UNIX_DOMAIN;
+        $this->unixDomainFile = "/tmp/yomiSocket";
+        $this->address = null;
+        $this->port = null;
         $this->listenTimeout = -1;
         $this->peerName = __CLASS__;
+        $this->serverSocket = null;
     }
 
     /**
-     * @param callable|null $requestHandler
-     * @param callable|null $bindStatusHandler
+     * @param string $socketFile
      */
-    public function runServer($requestHandler = null, $bindStatusHandler = null)
+    public function configSocketAsUnixDomain($socketFile = "/tmp/yomiSocket")
     {
-        $server = stream_socket_server("tcp://{$this->address}:{$this->port}", $errorNumber, $errorMessage);
+        $this->socketType = self::SOCKET_TYPE_UNIX_DOMAIN;
+        $this->unixDomainFile = $socketFile;
+    }
+
+    /**
+     * @param $address
+     * @param $port
+     */
+    public function configSocketAsTcpIp($address, $port)
+    {
+        $this->socketType = self::SOCKET_TYPE_TCP_IP;
+        $this->address = $address;
+        $this->port = $port;
+    }
+
+    /**
+     * @return string
+     * @throws \Exception
+     */
+    protected function socketAddress()
+    {
+        if ($this->socketType == self::SOCKET_TYPE_UNIX_DOMAIN) {
+            return "unix://" . $this->unixDomainFile;
+        } elseif ($this->socketType == self::SOCKET_TYPE_TCP_IP) {
+            return "tcp://{$this->address}:{$this->port}";
+        }
+        throw new \Exception("socket address error");
+    }
+
+    /**
+     * @param callback|null $specialHandler
+     */
+    protected function registerDeathSignalHandler($specialHandler = null)
+    {
+        YomiHelper::defineSignalHandler([SIGINT, SIGTERM, SIGHUP], function ($signal_number) use ($specialHandler) {
+            YomiHelper::log("ERROR", "SIGNAL: " . $signal_number);
+            if ($specialHandler) {
+                call_user_func_array($specialHandler, [$this->serverSocket, $signal_number]);
+            }
+            $this->terminateServerWhenSignalComes();
+            exit();
+        });
+    }
+
+    /**
+     * @param callable|null $requestHandler (resource $client)
+     * @param callable|null $bindStatusHandler (bool $bind_ok)
+     * @param callable|null $specialHandler (resource $serverSocket, int $signal)
+     */
+    public function runServer($requestHandler = null, $bindStatusHandler = null, $specialHandler = null)
+    {
+        $this->serverSocket = stream_socket_server($this->socketAddress(), $errorNumber, $errorMessage);
 
         if ($bindStatusHandler) {
-            $bind_ok = ($server === false ? false : true);
+            $bind_ok = ($this->serverSocket === false ? false : true);
             call_user_func_array($bindStatusHandler, [$bind_ok]);
         }
 
-        if ($server === false) {
+        if ($this->serverSocket === false) {
             throw new \UnexpectedValueException("Could not bind to socket: $errorMessage");
         }
 
-        YomiHelper::defineSignalHandler([SIGINT, SIGTERM, SIGHUP], function ($signal_number) {
-            YomiHelper::log("ERROR", "SIGNAL: " . $signal_number);
-            exit();
-        });
-        YomiHelper::defineSignalHandler([SIGUSR1], function ($signal_number) {
-            YomiHelper::log("INFO", "USER SIGNAL: " . $signal_number);
-        });
+        $this->registerDeathSignalHandler($specialHandler);
 
         YomiHelper::log("INFO", "BEGIN LISTEN...");
 
         while (true) {
-            $client = stream_socket_accept($server, $this->listenTimeout, $this->peerName);
+            $client = stream_socket_accept($this->serverSocket, $this->listenTimeout, $this->peerName);
 
             if ($client) {
                 $callback_command = self::SERVER_CALLBACK_COMMAND_NONE;
@@ -71,7 +123,6 @@ class SocketAgent
                 if ($requestHandler) {
                     $callback_command = call_user_func_array($requestHandler, [$client]);
                 } else {
-                    //just a demo
                     $content = stream_get_contents($client);
                     YomiHelper::log("INFO", "Received from [{$pairName}]: " . $content);
                 }
@@ -88,6 +139,20 @@ class SocketAgent
                 }
             }
         }
+
+        $this->terminateServerWhenSignalComes();
+    }
+
+    protected function terminateServerWhenSignalComes()
+    {
+        if ($this->serverSocket) {
+            YomiHelper::log("INFO", "CLOSE SERVER by " . __METHOD__);
+            fclose($this->serverSocket);
+            if ($this->socketType == self::SOCKET_TYPE_UNIX_DOMAIN) {
+                $deleted = unlink($this->unixDomainFile);
+                YomiHelper::log("INFO", "Deleting unix domain socket file [{$this->unixDomainFile}]..." . json_encode($deleted));
+            }
+        }
     }
 
     /**
@@ -95,7 +160,7 @@ class SocketAgent
      */
     public function runClient($callback = null)
     {
-        $client = stream_socket_client("tcp://{$this->address}:{$this->port}", $errNumber, $errorMessage, $this->listenTimeout);
+        $client = stream_socket_client($this->socketAddress(), $errNumber, $errorMessage, $this->listenTimeout);
 
         if ($client === false) {
             throw new \UnexpectedValueException("Failed to connect: $errorMessage");
@@ -108,9 +173,6 @@ class SocketAgent
             while (!feof($client)) {
                 $response .= fgets($client, 1024);
             }
-
-            //$result=stream_socket_sendto($client, $content);
-            //$response = stream_get_contents($client);
 
             YomiHelper::log("DEBUG", " sent PING, response: " . $response);
         }

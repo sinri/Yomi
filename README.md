@@ -1,5 +1,7 @@
 # Yomi
-A queue handler for PHP
+A queue handler for PHP (as it should be...)
+
+Now it is a mix...
 
 ## SocketAgent
 

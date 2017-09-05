@@ -8,7 +8,9 @@
 
 require_once __DIR__ . '/../../autoload.php';
 
-$socketAgent = new \sinri\yomi\socket\SocketAgent('127.0.0.1', '12345');
+$socketAgent = new \sinri\yomi\socket\SocketAgent();
+$socketAgent->configSocketAsTcpIp('127.0.0.1', '12345');
+
 $single = new \sinri\yomi\single\SingleJSONServer($socketAgent);
 
 $single->listen();
