@@ -115,6 +115,8 @@ class SocketAgent
         YomiHelper::log("INFO", "BEGIN LISTEN...");
 
         while (true) {
+//            YomiHelper::log("DEBUG","Now server runs `pcntl_signal_dispatch`");
+//            pcntl_signal_dispatch();
             $client = stream_socket_accept($this->serverSocket, $this->listenTimeout, $this->peerName);
 
             if ($client) {

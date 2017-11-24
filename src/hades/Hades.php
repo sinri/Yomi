@@ -91,7 +91,7 @@ class Hades
             } else {
                 //as child, define signal handler and begin working
                 YomiHelper::defineSignalHandler([SIGUSR1], function ($signal_number) {
-                    YomiHelper::log("INFO", "USER SIGNAL: " . $signal_number);
+                    YomiHelper::log("INFO", "USER SIGNAL (Safe Stop): " . $signal_number);
                     $this->workProcessSwitch = self::WORKER_STOP;
                 });
                 YomiHelper::defineSignalHandler([SIGINT, SIGTERM, SIGHUP], function ($signal_number) {
@@ -100,7 +100,7 @@ class Hades
                     exit();
                 });
                 YomiHelper::defineSignalHandler([SIGUSR2], function ($signal_number) {
-                    YomiHelper::log("INFO", "SYSTEM SIGNAL: " . $signal_number);
+                    YomiHelper::log("INFO", "USER SIGNAL (Safe Start): " . $signal_number);
                     $this->workProcessSwitch = self::WORKER_NORMAL;
                 });
                 $this->workForChild();
@@ -205,13 +205,19 @@ class Hades
     protected function workForChild()
     {
         while ($this->workProcessSwitch == self::WORKER_INIT) {
+//            YomiHelper::log("DEBUG","Now init worker runs `pcntl_signal_dispatch`");
+//            pcntl_signal_dispatch();
             time_nanosleep(0, 100000000);
             YomiHelper::log("DEBUG", "current worker status: " . $this->workProcessSwitch);
         }
         while ($this->workProcessSwitch != self::WORKER_STOP) {
+//            YomiHelper::log("DEBUG","Now normal worker runs `pcntl_signal_dispatch`");
+//            pcntl_signal_dispatch();
             // You might only rewrite this part when override.
-            YomiHelper::log("DEBUG", "I am working...");
-            sleep(rand(2, 6));
+            $seconds = rand(10, 20);
+            YomiHelper::log("DEBUG", "I am working on one task might spend {$seconds} seconds.");
+            for ($i = 0; $i < $seconds; $i++) sleep(1);
+            YomiHelper::log("DEBUG", "I have done my job");
         }
     }
 
@@ -264,6 +270,8 @@ class Hades
             $socketAgent = $this->createSocketAgent();
             $socketAgent->runClient(function ($client) use ($order) {
                 fwrite($client, json_encode(['order' => $order]));
+
+                YomiHelper::log("INFO", "Sent [{$order}] to the daemon...");
 
                 $response = '';
                 while (!feof($client)) {

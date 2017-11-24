@@ -47,6 +47,8 @@ class YomiHelper
      */
     public static function defineSignalHandler($signals, $callback)
     {
+        // in doc sb. saith, as of PHP 5.3, use pcntl_signal_dispatch instead
+        // but that would be not able to operate the real time signal
         declare(ticks=1);
         foreach ($signals as $signal) {
             pcntl_signal($signal, $callback);
